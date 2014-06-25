@@ -1,0 +1,1 @@
+An interactive map which allows public citizens of Denton County to register their private emergency shelters. The data collected from this application will be used to aid first responders in locating victims during emergencies. Basemap and road data was obtained from Denton County. Created while employed at Denton County.
