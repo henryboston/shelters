@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <!--The viewport meta tag is used to improve the presentation and behavior of the samples 
+      on iOS devices-->
+    <meta name="viewport" content="initial-scale=1, maximum-scale=1,user-scalable=no">
+    <title>Denton County Emergency Shelter Registration</title>
+
+    <!-- include dojo theme -->
+    <link rel="stylesheet" href="http://js.arcgis.com/3.8/js/dojo/dijit/themes/claro/claro.css">
+    <link rel="stylesheet" href="http://js.arcgis.com/3.8/js/esri/css/esri.css">
+    <style>
+      .dj_ie .infowindow .window .top .right .user .content { position: relative; }
+      .dj_ie .simpleInfoWindow .content {position: relative;}
+
+      html, body { height: 100%; width: 100%; margin: 0; padding: 0; overflow:hidden; }
+      #leftPane{
+        overflow:hidden;
+        border:none;
+        color:#5C832F;
+      }
+      #map{
+        border: solid medium #382513;
+        padding:0;
+        background: #c4c4c4;
+      }
+
+      .esriAttributeInspector{
+        atiLayerName:'Building Details'
+      }
+      .templatePicker{
+        border:none !important;
+      }
+      .templatePicker .grid .groupLabel{
+        display:none;
+      }
+
+      #header {
+        background-image:url('images/header.png');
+        background-repeat: no-repeat;
+        background-position: center;
+        height: 52px;
+        text-align: center;
+      }
+      #logo {
+        background-image:url('images/logo.png');
+        right: 3px;
+        height: 70px;
+        width: 75px;
+        top: 3px;
+        position: absolute;
+        z-index: 0;
+        background-repeat: none;
+      }
+
+      #divDragPanel {
+        z-index: 99;
+        width: 425px;
+        position: absolute;
+        top: 75px;
+        right: 100px;
+      }
+
+.dragPanel {
+  background-color: #fff;
+  font-size: 10pt;
+  border: 1px solid #000;
+  box-shadow: 3px 3px 3px #000;
+}
+
+.dragPanelContent {
+  background-color: #f2f0ea;
+}
+
+#lblDragPanelHeader {
+  font-size: 16px;
+}
+
+table {
+  width:100%;
+  padding:0px;
+  border-spacing:0px;
+}
+
+table.border {
+  border: 1px solid #614100;
+  vertical-align: top;
+}
+
+.alternating-item {
+    background-color: #e5e7c7;
+}
+
+.table-cell-bborder {
+  border-bottom: 2px solid #614100;
+}
+
+.table-header
+{
+  background-color: #cdd294;
+}
+
+.tableLogo{
+  background-image:url('../Images/TitleBackGround.png');
+  width: 100%;
+  text-align: center;
+    padding: 0px;
+  margin: 0px;
+}
+
+#divContent {
+  margin: 10px;
+}
+
+    </style>
+
+    <!-- specify dojo configuration to parse dijits at load time -->
+    <script>var dojoConfig = { parseOnLoad:true };</script>
+    <!-- reference ArcGIS JavaScript API -->
+    <script src="http://js.arcgis.com/3.8/"></script>
+    <script>
+      //require selection dijit
+      dojo.require("esri.map");
+      dojo.require("esri.dijit.editing.Editor-all");
+      dojo.require("dijit.layout.ContentPane");
+      dojo.require("dijit.layout.BorderContainer");
+      dojo.require("dijit.form.ValidationTextBox");
+      dojo.require("dojo.dnd.Moveable");
+      dojo.require("dijit.layout.TabContainer");
+      dojo.require("esri.dijit.InfoWindow");
+      dojo.require("dojo.domReady!");
+      dojo.require("esri.arcgis.utils");
+      dojo.require("dijit.Dialog");
+
+
+
+      var map;
+      var myDialog;
+
+    require(["dijit/Dialog", "dojo/domReady!"], function(Dialog){
+        help = new Dialog({
+            title: "Help",
+            content: "This application is for the public to register their emergency shelters to aid first responders.<ol><li>Use the address locator or manually zoom in to find your shelter location on the map.</li><li>Click the green emergency shelter icon in the dialogue box.  </li><li>Once the location has been found click on the map and the green shelter icon will appear where you clicked.  </li><li>Click again on the icon that you just placed and fill out the appropriate shelter information.</li></ol> ",
+            style: "width: 300px"
+        });
+    });
+
+      var panelMove = function (e) {
+          if (parseInt(e.node.style.top, 10) <= 70) {
+              e.node.style.top = "70px";
+          }
+
+          if (parseInt(e.node.style.left, 10) <= 0) {
+              e.node.style.left = "0px";
+          }
+      };
+
+      var resize = function () {
+          var ctr = map.extent.getCenter();
+
+          dojo.byId("map").style.height = (dojo.window.getBox().h - 70) + 'px';
+          setTimeout(function () { map.centerAt(ctr); }, 500);
+          map.resize();
+          CheckDragPanelOnResize();
+          
+      };
+
+      function InitializeDragPanel() {
+          var viewPort = dojo.window.getBox();
+          var floatPanel = dojo.byId("divDragPanel");
+
+          if (floatPanel) {
+              floatPanel.style.left = (viewPort.w - 445) + "px";
+          }
+      }
+
+
+      function CheckDragPanelOnResize() {
+          var Ix = null;
+          var viewPort = dojo.window.getBox();
+          var floatPanel = dojo.byId("divDragPanel");
+
+          Ix = viewPort.w - parseInt(floatPanel.style.left, 10);
+
+          if (floatPanel) {
+              if (Ix < 400) {
+                  floatPanel.style.left = (viewPort.w - 430) + "px";
+              }
+          }
+
+          //Ix = viewPort.w - 430;
+
+          //if (Ix < 400) {
+          //    Ix = 400;
+          //}
+
+          //if (floatPanel) {
+          //    floatPanel.style.left = Ix + "px";
+          //}
+
+      }
+
+      function HidePanel(pnlName) {
+    dojo.fx.wipeOut({
+        node: pnlName
+    }).play();
+}
+
+function ShowPanel(pnlName) {
+    dojo.fx.wipeIn({
+        node: pnlName
+    }).play();
+}
+
+function HideShowPanel(pnlName, sender) {
+    var caller = dojo.byId(sender);
+    var pnl = dojo.byId(pnlName);
+
+    if (caller && pnl) {
+        if (caller.alt == "Minimize") {
+            caller.alt = "Maximize";
+            caller.src = "./Images/MaxSmall.png";
+            HidePanel(pnlName);
+        }
+        else {
+            caller.alt = "Minimize";
+            caller.src = "./Images/MinSmall.png";
+            ShowPanel(pnlName);
+        }
+    }
+}
+
+      
+      function init() {
+        //This sample requires a proxy page to handle communications with the ArcGIS Server services. You will need to  
+        //replace the url below with the location of a proxy on your machine. See the 'Using the proxy page' help topic 
+        //for details on setting up a proxy page.
+        esri.config.defaults.io.proxyUrl = "/proxy";
+        esri.config.defaults.io.alwaysUseProxy = false;
+        
+        //This service is for development and testing purposes only. We recommend that you create your own geometry service for use within your applications. 
+        esri.config.defaults.geometryService = new esri.tasks.GeometryService("http://tasks.arcgisonline.com/ArcGIS/rest/services/Geometry/GeometryServer");
+        var lods = [
+          { level: 0 , resolution: 260.41666666666663, scale: 300000 },
+          { level: 1 , resolution: 133.33333333333331 , scale: 153600 },
+          { level: 2 , resolution: 66.66666666666666 , scale: 76800 },
+          { level: 3 , resolution: 33.33333333333333 , scale: 38400 },
+          { level: 4 , resolution: 16.666666666666664 , scale: 19200 },
+          { level: 5 , resolution: 8.333333333333332 , scale: 9600 },
+          { level: 6 , resolution: 4.166666666666666 , scale: 4800 },
+          { level: 7 , resolution: 2.083333333333333 , scale: 2400 },
+          { level: 8 , resolution: 1.0416666666666665 , scale: 1200 },
+          { level: 9 , resolution: 0.5208333333333333 , scale: 600 }
+        ]; 
+        
+        map = new esri.Map("map", {
+          center: [-97.12, 33.18],
+          //slider: true,
+          lods: lods
+        });
+
+        //Add the basemap and set the opacity
+        var basemap = new esri.layers.ArcGISDynamicMapServiceLayer("http://arc-gis/arcgis/rest/services/LandmarkBase/MapServer");
+        map.addLayer(basemap);
+        basemap.setOpacity(0.5);
+        map.reorderLayer(basemap,1);
+        
+        var labels = new esri.layers.ArcGISDynamicMapServiceLayer("http://arc-gis/arcgis/rest/services/LandmarkLabelsAdvanced/MapServer");
+        map.addLayer(labels);
+
+        //var dcad = new esri.layers.ArcGISDynamicMapServiceLayer("http://arc-gis/arcgis/rest/services/CAD/MapServer");
+        //map.addLayer(dcad);
+
+        //Add the aerials image, set the opacity and change the order to the back
+        var aerials = new esri.layers.ArcGISImageServiceLayer("http://arc-gis/arcgis/rest/services/Aerials2013/ImageServer");
+        map.addLayer(aerials);
+        aerials.setOpacity(0.7);
+        map.reorderLayer(aerials,0);
+
+        dojo.connect(map, "onLayersAddResult", initEditor); 
+
+        //Add the editable feature layer to the map
+        var pointsOfInterest = new esri.layers.FeatureLayer("http://arc-gis/arcgis/rest/services/Shelters/FeatureServer/0",{
+          mode: esri.layers.FeatureLayer.MODE_ONDEMAND, 
+          outFields: ['*'],
+          visible: false,
+        });
+
+        map.addLayers([pointsOfInterest]);
+
+        //Only show the latest shelter added and hide the rest
+        // .show causes the popup to not show
+        dojo.connect(pointsOfInterest, "onEditsComplete", function(a, u, d) { 
+            pointsOfInterest.show();
+            var objectId = a[0].objectId;
+            pointsOfInterest.setDefinitionExpression("OBJECTID = " + objectId);
+            pointsOfInterest.refresh();
+        });
+
+         // drag panel
+      var dnd = new dojo.dnd.Moveable(dojo.byId("divDragPanel"), { handle: "imgDrag", skip: true });
+      var dndLegend = new dojo.dnd.Moveable(dojo.byId("divLegendPanel"), { handle: "legendDrag", skip: true });
+      dojo.connect(dnd, "onMove", panelMove);
+      dojo.connect(dndLegend, "onMove", panelMove);
+      dojo.connect(dnd, "onMoveStop", resize);
+
+      InitializeDragPanel();
+      resize();
+      }
+
+      //Click function for locate button
+      function locate() {
+          var locator = new esri.tasks.Locator("http://arc-gis/arcgis/rest/services/Parcel_Address_locator/GeocodeServer");
+          dojo.connect(locator, "onAddressToLocationsComplete", showLocateResults);
+          map.graphics.clear();
+          var address = { "KeyField": dojo.byId("address").value };
+          locator.outSpatialReference = map.spatialReference;
+          var options = {
+              address: address,
+              outFields: ["*"]
+          }
+          locator.addressToLocations(options);
+      }
+
+      //Result handler for geocoder
+        function showLocateResults(candidates) {
+            var addr = candidates[0];
+            if (addr != null) {
+                var geom = addr.location;
+                var flagSymbol = new esri.symbol.PictureMarkerSymbol('images/flag.png', 32, 32);
+                var graphic = new esri.Graphic(geom, flagSymbol);
+                map.centerAndZoom(geom, 6);
+                map.graphics.add(graphic);
+            }
+            else {
+                alert("Address Not Found.");
+            }
+         }
+
+      function initEditor(results) {
+        //only one layer 
+        var featureLayer = results[0].layer;
+       
+        var templatePicker = new esri.dijit.editing.TemplatePicker({
+          featureLayers: [featureLayer],
+          rows: 'auto',
+          groupingEnabled:false,
+          columns: 1
+        },'editorDiv');
+        templatePicker.startup();
+
+        //define the fields the attribute inspector contains
+        //phone number ^\\(?(\\d{3})\\)?[- ]?(\\d{3})[- ]?(\\d{4})$
+        //zip code ^(\\d{5}-\\d{4})|(\\d{5})$
+         var myDijit = new dijit.form.ValidationTextBox({
+          regExp : "\\(?(\\d{3})\\)?[- ]?(\\d{3})[- ]?(\\d{4})",
+          required : false, 
+          promptMessage: "Enter phone number",
+          invalidMessage : "Enter valid phone number"
+        });
+       
+        var layerInfos = [{
+          'featureLayer':featureLayer,
+          'showAttachments':false,
+          'showDeleteButton':true,
+          'fieldInfos':[
+            {'fieldName':'Name','label':'Name'},
+            {'fieldName':'C_Address','label':'Address'},
+            {'fieldName':'C_City','label':'City'},
+            //{'fieldName':'County','label':'County'},
+            {'fieldName':'State','label':'State'},
+            {'fieldName':'Zip','label':'Zip'},
+            {'fieldName':'Cust_Phone','label':'Phone','customField':myDijit},
+            {'fieldName':'Underground','label':'Underground'},
+            {'fieldName':'Occupancy','label':'Occupancy'},
+            {'fieldName':'Private','label':'Private'},
+            {'fieldName':'Sh_Type','label':'Shelter Type'}
+
+
+            /*
+            C_City ( type: esriFieldTypeString , alias: Customer City , editable: true , nullable: true , length: 20 ) 
+            County ( type: esriFieldTypeString , alias: Cust County , editable: true , nullable: true , length: 15 ) 
+            State ( type: esriFieldTypeString , alias: State , editable: true , nullable: true , length: 12 ) 
+            Zip ( type: esriFieldTypeString , alias: Zip Code , editable: true , nullable: true , length: 5 ) 
+            Cust_Phone ( type: esriFieldTypeString , alias: Customer Phone , editable: true , nullable: true , length: 15 ) 
+            Sh_Address ( type: esriFieldTypeString , alias: Shelter Address , editable: true , nullable: true , length: 50 ) 
+            Sh_City ( type: esriFieldTypeString , alias: Shelter City , editable: true , nullable: true , length: 25 ) 
+            Sh_County ( type: esriFieldTypeString , alias: Shelter County , editable: true , nullable: true , length: 25 ) 
+            Sh_State ( type: esriFieldTypeString , alias: Shelter State , editable: true , nullable: true , length: 15 ) 
+            Sh_Zip ( type: esriFieldTypeString , alias: Shelter Zip , editable: true , nullable: true , length: 5 ) 
+            Door_X ( type: esriFieldTypeDouble , alias: Door X , editable: true , nullable: true ) 
+            Door_Y ( type: esriFieldTypeDouble , alias: Door Y , editable: true , nullable: true ) 
+            Underground ( type: esriFieldTypeString , alias: Underground , editable: true , nullable: true , length: 3 ) 
+            Occupancy ( type: esriFieldTypeSmallInteger , alias: Occupancy Lim , editable: true , nullable: true ) 
+            Private ( type: esriFieldTypeString , alias: Private Own , editable: true , nullable: true , length: 3 ) 
+            Sh_Type ( type: esriFieldTypeString , alias: Shelter Type , editable: true , nullable: true , length: 25 ) 
+            Manufacturer ( type: esriFieldTypeString , alias: Manufacturer , editable: true , nullable: true , length: 50 ) 
+            Sh_Model ( type: esriFieldTypeString , alias: Shelter Model , editable: true , nullable: true , length: 20 ) 
+            YearInstalled ( type: esriFieldTypeDate , alias: Year Installed , editable: true , nullable: true , length: 36 ) 
+            ID ( type: esriFieldTypeString , alias: Shelter ID , editable: true , nullable: true , length: 15 ) 
+
+            */
+          ]
+        }];
+ 
+         //define the editor settings
+        var settings = {
+          map: map,
+          templatePicker:templatePicker,
+          layerInfos:layerInfos
+        };
+        var params = {settings: settings};
+        //Create the editor widget 
+        var editorWidget = new esri.dijit.editing.Editor(params);
+        editorWidget.startup();
+        
+        //resize the info window (attribute inspector)
+        map.infoWindow.resize(295,245);
+      }
+     
+       dojo.ready(init);
+    </script>
+  </head>
+  <body class="claro">
+    <div id="header">
+      <h1>Emergency Shelter Registration</h1>
+      
+    </div>
+    <div id="logo"> </div>
+    <div style="width:100%;height:100%;">
+      <div id="map" style="height:100%"></div>
+      <div id="divDragPanel" class="dragPanel" style="overflow: hidden;">
+            <table>
+
+                <tr title="Click here and drag to reposition this panel">
+                    <td id="imgDrag" class="left dijitDialogTitleBar" style="cursor:move; width:375px;">
+                        <span id="lblDragPanelHeader" style="font-weight:bold;">Emergency Shelter Registration</span>
+                    </td>
+                    <td class="right" style="width:22px;">
+                        <img id="imgMin" src="./Images/MinSmall.png" alt="Minimize" onclick="HideShowPanel('divContent', this);" />
+                    </td>
+                </tr>
+              </table>
+              <div id="divContent">
+                <table>
+                 <tr>
+                  Click the Shelter Icon and place it on the map where your shelter is located
+                  <div></div>
+                  <div id="editorDiv"></div>
+                  <div></div>
+                  Enter a street address:
+            <br />
+            <textarea type="text" id="address"/ style="width:80%"></textArea>
+            <br />
+            Example: 2001 W Hickory St
+            <br />
+            <button dojotype="dijit.form.Button" onclick="locate()"> Locate</button>
+            <button dojotype="dijit.form.Button" onclick="help.show();">Help</button>
+            <br />
+            <br />
+            Map produced by the <a href="http://gis.dentoncounty.com/" target="_blank">GIS Department</a> at <a href="http://dentoncounty.com" target="_blank">Denton County</a>.
+                 </tr>
+              </table>
+            </div>
+            </div>
+              
+
+      
+       
+
+    </div>
+  </body>
+</html>
